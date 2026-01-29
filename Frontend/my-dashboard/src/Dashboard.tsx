@@ -140,14 +140,27 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/devices`);
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data: Device[] = await res.json();
-        setDevices(data);
-        if (!selectedDeviceId && data.length > 0) setSelectedDeviceId(data[0].device_id);
-      } catch (err) {
-        console.error("Could not fetch devices:", err);
-      }
+  const res = await fetch(`${BACKEND_URL}/api/devices`);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+
+  // 👇 THIS IS WHERE raw IS ADDED
+  const raw: any[] = await res.json();
+
+  const parsed: Device[] = raw.map((d) => ({
+    ...d,
+    latitude: Number(d.latitude ?? d.lat),
+    longitude: Number(d.longitude ?? d.lng),
+  }));
+
+  setDevices(parsed);
+
+  if (!selectedDeviceId && parsed.length > 0) {
+    setSelectedDeviceId(parsed[0].device_id);
+  }
+} catch (err) {
+  console.error("Could not fetch devices:", err);
+}
+
     };
 
     fetchDevices();
