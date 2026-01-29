@@ -11,7 +11,7 @@ import {
   Area,
 } from "recharts";
 
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -99,22 +99,6 @@ const markerIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-function FitBounds({ devices }: { devices: Device[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (devices.length === 0) return;
-
-    const bounds = L.latLngBounds(
-      devices.map((d) => [d.latitude, d.longitude])
-    );
-
-    map.fitBounds(bounds, { padding: [40, 40] });
-  }, [devices, map]);
-
-  return null;
-}
-
 export default function Dashboard() {
   // ---------- Theme ----------
   const [mode, setMode] = useState<"light" | "dark">("light");
@@ -152,55 +136,25 @@ export default function Dashboard() {
     () => devices.find((d) => d.device_id === selectedDeviceId),
     [devices, selectedDeviceId]
   );
-  // Leaflet-safe devices (prevents Invalid LatLng crash)
-  
-  const validDevices = useMemo(
-  () =>
-    devices.filter(
-      (d) =>
-        typeof d.latitude === "number" &&
-        typeof d.longitude === "number" &&
-	!Number.isNaN(d.latitude) &&
-        !Number.isNaN(d.longitude)
-    ),
-  [devices]
-);
-
-console.log("Devices (raw):", devices);
-console.log("Devices (valid):", validDevices);
-
-
 
   useEffect(() => {
     const fetchDevices = async () => {
       try {
         const res = await fetch(`${BACKEND_URL}/api/devices`);
         if (!res.ok) throw new Error("HTTP " + res.status);
-        
-	const raw: any[] = await res.json();
-	console.log("FIRST DEVICE RAW:", raw[0]);
-
-
-	const parsed: Device[] = raw.map((d) => ({
-  	device_id: d.device_id,
-  	label: d.label,
-  	address: d.address,
-  	latitude: Number(d.lat),
-  	longitude: Number(d.lng),
-  	created_at: d.created_at,
-}));
-	console.log("Parsed device example:", parsed[0]);
-	
-	setDevices(parsed);
-	
-
-        if (!selectedDeviceId && parsed.length > 0) 
-		setSelectedDeviceId(parsed[0].device_id);
+        const data: Device[] = await res.json();
+        setDevices(data);
+        if (!selectedDeviceId && data.length > 0) setSelectedDeviceId(data[0].device_id);
       } catch (err) {
         console.error("Could not fetch devices:", err);
       }
     };
 
+    fetchDevices();
+    const id = setInterval(fetchDevices, 60_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---------- Live ----------
   const LIVE_WINDOW_MS = 20_000; // laatste 20 seconden
@@ -354,22 +308,9 @@ console.log("Devices (valid):", validDevices);
   }, [preset, selectedDate]);
 
   const mapCenter: [number, number] = useMemo(() => {
-  if (
-    selectedDevice &&
-    Number.isFinite(selectedDevice.latitude) &&
-    Number.isFinite(selectedDevice.longitude)
-  ) {
-    return [selectedDevice.latitude, selectedDevice.longitude];
-  }
-
-  if (validDevices.length > 0) {
-    return [validDevices[0].latitude, validDevices[0].longitude];
-  }
-
-  return [51.0, 10.0]; // fallback Germany
-}, [selectedDevice, validDevices]);
-
-
+    if (selectedDevice) return [selectedDevice.latitude, selectedDevice.longitude];
+    return [51.0, 10.0];
+  }, [selectedDevice]);
 
   return (
     <div
@@ -615,19 +556,18 @@ console.log("Devices (valid):", validDevices);
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div style={{ fontSize: 14, fontWeight: 800, opacity: 0.95 }}>Map (select a sensor)</div>
               <div style={{ fontSize: 12, opacity: 0.75 }}>
-                Devices: <b>{validDevices.length}</b>
+                Devices: <b>{devices.length}</b>
               </div>
             </div>
 
             <div style={{ height: 260, borderRadius: 12, overflow: "hidden", border: `1px solid ${theme.border}` }}>
               <MapContainer center={mapCenter} zoom={6} style={{ height: "100%", width: "100%" }}>
-              	<FitBounds devices={validDevices} />  
-	      	<TileLayer
+                <TileLayer
                   attribution='&copy; OpenStreetMap contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {validDevices.map((d) => (
+                {devices.map((d) => (
                   <Marker
                     key={d.device_id}
                     position={[d.latitude, d.longitude]}
@@ -642,8 +582,9 @@ console.log("Devices (valid):", validDevices);
                       {d.address && <div style={{ fontSize: 12, marginTop: 4 }}>{d.address}</div>}
                       <div style={{ fontSize: 11, opacity: 0.75, marginTop: 6 }}>
                         Lat: {typeof d.latitude === "number" ? d.latitude.toFixed(6) : "—"}<br />
-			Lon: {typeof d.longitude === "number" ? d.longitude.toFixed(6) : "—"}
-			</div>
+                        Lon: {typeof d.longitude === "number" ? d.longitude.toFixed(6) : "—"}
+
+                       </div>
                     </Popup>
                   </Marker>
                 ))}
