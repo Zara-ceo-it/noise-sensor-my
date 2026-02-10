@@ -170,7 +170,7 @@ export default function Dashboard() {
   }, []);
 
   // ---------- Live ----------
-  const LIVE_WINDOW_MS = 20_000; // laatste 20 seconden
+  const LIVE_WINDOW_MS = 300_000; // laatste 5 mintuen
   const [live, setLive] = useState<LivePoint[]>([]);
   const [liveNow, setLiveNow] = useState<number>(() => Date.now()); // voor schuivende X-as
   const [liveStatus, setLiveStatus] = useState<
